@@ -1,0 +1,44 @@
+We are only going to look at inflow
+
+    1990-2005
+    http://www.irs.gov/uac/SOI-Tax-Stats-Migration-Data
+
+    2005-2011
+    http://www.irs.gov/uac/SOI-Tax-Stats-County-to-County-Migration-Data-Files
+
+shttp://www.jasonamyers.com/pycon2014/#/
+http://docs.sqlalchemy.org/en/rel_0_9/core/tutorial.html
+https://bitbucket.org/zzzeek/sqlalchemy/wiki/UsageRecipes
+
+Setup:
+
+Install SQLAlchemy:
+
+easy_install SQLAlchemy
+
+MySQL Backup command:
+
+mysqldump --add-drop-table --comments --dump-date -u popmigration -ppassword popmigration | gzip -c > popmigration.sql.gz
+
+To start the mysql command processor:
+
+    mysql -u root -p
+
+It will prompt for password and enter "password".
+
+MySQL commands:
+
+create database popmigration;
+CREATE USER 'popmigration'@'localhost' IDENTIFIED BY 'password';
+GRANT ALL PRIVILEGES ON popmigration.* TO 'popmigration'@'localhost';
+
+show tables;
+
+use popmigration;
+
+http://pylonsdevelopment.blogspot.com/2010/07/connecting-to-mysql-database-using.html
+http://docs.sqlalchemy.org/en/rel_0_9/core/connections.html#sqlalchemy.engine.ResultProxy
+
+SELECT locCode AS id, locCode AS label FROM location_codes AS edges
+
+SELECT originCode AS source, destCode AS target, numReturns+numDependents AS weight FROM detail AS edges
