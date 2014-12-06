@@ -18,7 +18,7 @@ easy_install SQLAlchemy
 
 MySQL Backup command:
 
-mysqldump --add-drop-table --comments --dump-date -u popmigration -ppassword popmigration | gzip -c > popmigration.sql.gz
+mysqldump --add-drop-table --comments --dump-date -u popmigration -ppassword popmigration | gzip -c > popmigration-2014-12-05.sql.gz
 
 To start the mysql command processor:
 

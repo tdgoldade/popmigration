@@ -77,12 +77,14 @@ def lookupLocationCode(stateCode, countyCode, stateAbbr, countyName):
     locations_result = conn.execute(locations)
     if 0 == locations_result.rowcount:
         # Location does not yet exist -> insert one
+
         shortStateName = stateAbbr[:2]
         # Remove " Non-migrants" from County Name
-
         shortCountyName = countyName.replace("Non-migrants", "")
         shortCountyName = shortCountyName.replace("Non-Migrants", "")
         shortCountyName = shortCountyName[:37].strip()
+
+        # Create Location Key
         result = shortStateName + "-" + string.capwords(shortCountyName)
         insert_location = locationCodes.insert()
         inserted_location = conn.execute(insert_location, code=result, stateCode=stateCode, countyCode=countyCode,
@@ -107,13 +109,17 @@ def shouldInclude(rowparm):
 
 
 # Code: Delete all rows from data table and summary table with specified year.
-
+process_count = 0
 with open(csvfilename) as csvfile:
     # Map CSV column names to positions
     irscsvreader = csv.DictReader(csvfile, delimiter=',')
 
     # Iterate over rows in source CSV file, add locations as needed and store data in SQL tables
     for csvrow in irscsvreader:
+
+        process_count += 1
+        if not (process_count % 100):
+            sys.stdout.write('.')
 
         # Lookup/Create a location code for the specified origin state and county numeric codes
         originCode = lookupLocationCode(csvrow['State_Code_Origin'], csvrow['County_Code_Origin'], csvrow['State_Abbrv'],
@@ -128,13 +134,11 @@ with open(csvfilename) as csvfile:
             inserted_data = conn.execute(insert_data, destCode=destCode, originCode=originCode,
                                          numReturns=csvrow['Return_Num'], numDependents=csvrow['Exmpt_Num'],
                                          aggregateAGI=csvrow['Aggr_AGI'], year=selected_year)
-            print("Inserted detail")
         else:
             # CSV row is summary data - so store in summary table
             insert_data = summary.insert()
             inserted_data = conn.execute(insert_data, locCode=originCode, summaryType=csvrow['State_Code_Origin'],
                                          numReturns=csvrow['Return_Num'], numDependents=csvrow['Exmpt_Num'],
                                          aggregateAGI=csvrow['Aggr_AGI'], year=selected_year)
-            print("Inserted summary")
 
-
+print "\nSuccessfully processed %d rows from %s." % (process_count, csvfilename)
