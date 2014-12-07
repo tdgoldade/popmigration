@@ -20,6 +20,10 @@ MySQL Backup command:
 
 mysqldump --add-drop-table --comments --dump-date -u popmigration -ppassword popmigration | gzip -c > popmigration-2014-12-05.sql.gz
 
+MySQL Restore command:
+
+mysql -u root -ppassword popmigration < popmigration-2014-12-05.sql
+
 To start the mysql command processor:
 
     mysql -u root -p
