@@ -46,3 +46,7 @@ http://docs.sqlalchemy.org/en/rel_0_9/core/connections.html#sqlalchemy.engine.Re
 SELECT locCode AS id, locCode AS label FROM location_codes AS edges
 
 SELECT originCode AS source, destCode AS target, numReturns+numDependents AS weight FROM detail AS edges
+
+SELECT originCode AS source, destCode AS target, numReturns+numDependents AS weight FROM detail AS edges WHERE year=2011
+
+SELECT originCode AS source, destCode AS target, numReturns+numDependents AS weight FROM detail AS edges WHERE year=2011 AND destCode != originCode
