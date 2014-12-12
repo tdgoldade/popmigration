@@ -143,7 +143,8 @@ def readState(rdr):
         stateAbbr = us.states.lookup(csvrow['AreaAll']).abbr
         for i in range (0, 4):
             insert_state = politicalState.insert()
-            inserted_state = conn.execute(insert_state, stateAbbr=stateAbbr, total_votes=csvrow['TotalVotesAll'],
+            inserted_state = conn.execute(insert_state, stateAbbr=stateAbbr,
+                                      total_votes=int(csvrow['TotalVotesAll'].replace(',', '')),
                                       rep_votes=int(csvrow['RepVotesAll'].replace(',', '')),
                                       dem_votes=int(csvrow['DemVotesAll'].replace(',', '')),
                                       rep_pct=csvrow['RepVotesTotalPercentAll'],
