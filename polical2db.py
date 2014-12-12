@@ -55,7 +55,7 @@ Index("polcounty_index", politicalCounty.c.locCode, politicalCounty.c.year)
 
 politicalState = Table("political_state", metadata,
                        Column("id", Integer, primary_key=True),
-                       Column("stateAbbr", None, ForeignKey("location_codes.code")),
+                       Column("stateAbbr", String(2), nullable=False),
                        Column("total_votes", Integer, nullable=False),
                        Column("rep_votes", Integer, nullable=False),
                        Column("dem_votes", Integer, nullable=False),
@@ -68,14 +68,24 @@ Index("polstate_index", politicalState.c.stateAbbr, politicalState.c.year)
 
 process_count = 0
 
+class MultiCsvReader(csv.DictReader):
+    def __init__(self, f, fieldnames=None, restkey=None, restval=None,
+                 dialect="excel", *args, **kwds):
+        csv.DictReader.__init__(self, f, fieldnames, restkey, restval,
+                 dialect, *args, **kwds)
+
+    def readline(self):
+        return self.reader.next()
+
+
 # Find location code WHERE state and county match
-def lookupLocationCode(stateName, countyName):
+def lookupLocationCode(stateName, countyName, areaType):
     state = us.states.lookup(stateName)
     if None == state:
         print("State " + stateName + " not found in US states Python library.")
         sys.exit(-1)
     stateAbbr = state.abbr
-    county = countyName.strip().replace(".", "") + ' County'
+    county = countyName.strip().replace(".", "") + ' ' + areaType
     # Create Location Key
     locCode = stateAbbr + "-" + string.capwords(county)
 
@@ -96,53 +106,60 @@ def lookupLocationCode(stateName, countyName):
     return result
 
 
-def readCounties(csvfile):
+def readCounties(rdr):
     global process_count
     # Map CSV column names to positions
-    irscsvreader = csv.DictReader(csvfile, delimiter=',')
 
     # Iterate over rows in source CSV file, add locations as needed and store data in SQL tables
-    csvrow = irscsvreader.next()
+    csvrow = rdr.next()
     done = csvrow['Office'] != 'President'
     while not done:
-        locCode = lookupLocationCode(csvrow['State'], csvrow['Area'])
-        insert_county = politicalCounty.insert()
-        inserted_county = conn.execute(insert_county, locCode=locCode,
+        locCode = lookupLocationCode(csvrow['State'], csvrow['Area'], csvrow['AreaType'])
+        for i in range (0, 4):
+            insert_county = politicalCounty.insert()
+            inserted_county = conn.execute(insert_county, locCode=locCode,
                                        total_votes=int(csvrow['TotalVotes'].replace(',', '')),
                                        rep_votes=int(csvrow['RepVotes'].replace(',', '')),
                                        dem_votes=int(csvrow['DemVotes'].replace(',', '')),
                                        rep_pct=csvrow['RepVotesTotalPercent'], dem_pct=csvrow['DemVotesTotalPercent'],
-                                       year=selected_year)
+                                       year=int(selected_year)+i)
         process_count += 1
         if not (process_count % 100):
             sys.stdout.write('.')
 
-        csvrow = irscsvreader.next()
+        csvrow = rdr.next()
         done = csvrow['Office'] != 'President'
 
 
-def readState(csvfile):
+def readState(rdr):
     global process_count
+    global end_of_file
     # Map CSV column names to positions
-    irscsvreader = csv.DictReader(csvfile, delimiter=',')
 
     # Iterate over rows in source CSV file, add locations as needed and store data in SQL tables
-    done = False
+    csvrow = rdr.next()
+    done = csvrow['CensusPopAll'] != 'N/A'
     while not done:
-        csvrow = irscsvreader.next()
-        done = csvrow['CensusPopAll'] != 'N/A'
         stateAbbr = us.states.lookup(csvrow['AreaAll']).abbr
-
-        insert_state = politicalState.insert()
-        inserted_state = conn.execute(insert_state, stateAbbr=stateAbbr, total_votes=csvrow['TotalVotesAll'],
-                                      rep_votes=csvrow['RepVotesAll'], dem_votes=csvrow['DemVotesAll'],
+        for i in range (0, 4):
+            insert_state = politicalState.insert()
+            inserted_state = conn.execute(insert_state, stateAbbr=stateAbbr, total_votes=csvrow['TotalVotesAll'],
+                                      rep_votes=int(csvrow['RepVotesAll'].replace(',', '')),
+                                      dem_votes=int(csvrow['DemVotesAll'].replace(',', '')),
                                       rep_pct=csvrow['RepVotesTotalPercentAll'],
                                       dem_pct=csvrow['DemVotesTotalPercentAll'],
-                                      year=selected_year)
+                                      year=int(selected_year)+i)
 
         process_count += 1
         if not (process_count % 100):
             sys.stdout.write('.')
+
+        try:
+            csvrow = rdr.next()
+            done = csvrow['CensusPopAll'] != 'N/A'
+        except StopIteration:
+            done = True
+            end_of_file = True
 
 
 dburl = 'mysql://' + username + ':' + password + '@' + hostname + '/popmigration?charset=utf8&use_unicode=0'
@@ -152,24 +169,25 @@ conn = engine.connect()
 
 ifile = open(csvfilename, 'rb')
 end_of_file = False
-while not end_of_file:
-    pre_read_pos = ifile.tell()
-    nextline = ifile.readline()
-    if len(nextline) > 0:
-        if nextline.startswith("PRESIDENT"):
-            selected_year = nextline[10:14]
-        elif nextline.startswith(",,,,,"):
-            # Do nothing
-            sys.stdout.write('_')
-        elif nextline.startswith("Office"):
-            # Header for County results
-            ifile.seek(pre_read_pos, os.SEEK_SET)
-            readCounties(ifile)
-        elif nextline.startswith("CensusPopAll"):
-            # Header for State results
-            ifile.seek(pre_read_pos, os.SEEK_SET)
-            readState(ifile)
-    else:
-        end_of_file = True
+gen_iter = MultiCsvReader(ifile, delimiter=',')
+gen_csv_row = gen_iter.readline()
+col1 = gen_csv_row[0]
+while gen_csv_row and not end_of_file:
+    if col1.startswith("PRESIDENT"):
+        selected_year = col1[10:14]
+    elif 0 == len(col1):
+        # Do nothing
+        sys.stdout.write('_')
+    elif col1.startswith("Office"):
+        # Header for County results
+        gen_iter.fieldnames = gen_csv_row
+        readCounties(gen_iter)
+    elif col1.startswith("CensusPopAll"):
+        # Header for State results
+        gen_iter.fieldnames = gen_csv_row
+        readState(gen_iter)
+    if not end_of_file:
+        gen_csv_row = gen_iter.readline()
+        col1 = gen_csv_row[0]
 
 ifile.close()
