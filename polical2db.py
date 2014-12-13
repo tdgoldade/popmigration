@@ -86,9 +86,15 @@ def lookupLocationCode(stateName, countyName, areaType):
         print("State " + stateName + " not found in US states Python library.")
         sys.exit(-1)
     stateAbbr = state.abbr
-    county = countyName.strip().replace(".", "") + ' ' + areaType
+    trimmedCountyName = string.capwords(countyName.strip().replace(".", ""))
+    trimmedAreaType = string.capwords(areaType.strip())
+    index = trimmedCountyName.rfind(trimmedAreaType)
+    if -1 == index or index != len(trimmedCountyName)-len(trimmedAreaType):
+        county = trimmedCountyName + ' ' + areaType
+    else:
+        county = trimmedCountyName
     # Create Location Key
-    locCode = stateAbbr + "-" + string.capwords(county)
+    locCode = stateAbbr + "-" + county
 
     locations = select([locationCodes]).where(locationCodes.c.code == locCode)
     locations_result = conn.execute(locations)
@@ -102,7 +108,6 @@ def lookupLocationCode(stateName, countyName, areaType):
     else:
         # More than one row returned - should not occur -> show error and exit.
         print("Multiple of this location found in file!")
-        sys.exit(-1)
     locations_result.close()
     return result
 
@@ -116,14 +121,15 @@ def readCounties(rdr):
     done = csvrow['Office'] != 'President'
     while not done:
         locCode = lookupLocationCode(csvrow['State'], csvrow['Area'], csvrow['AreaType'])
-        for i in range (0, 4):
-            insert_county = politicalCounty.insert()
-            inserted_county = conn.execute(insert_county, locCode=locCode,
-                                       total_votes=int(csvrow['TotalVotes'].replace(',', '')),
-                                       rep_votes=int(csvrow['RepVotes'].replace(',', '')),
-                                       dem_votes=int(csvrow['DemVotes'].replace(',', '')),
-                                       rep_pct=csvrow['RepVotesTotalPercent'], dem_pct=csvrow['DemVotesTotalPercent'],
-                                       year=int(selected_year)+i)
+        if locCode:
+            for i in range (0, 4):
+                insert_county = politicalCounty.insert()
+                inserted_county = conn.execute(insert_county, locCode=locCode,
+                                           total_votes=int(csvrow['TotalVotes'].replace(',', '')),
+                                           rep_votes=int(csvrow['RepVotes'].replace(',', '')),
+                                           dem_votes=int(csvrow['DemVotes'].replace(',', '')),
+                                           rep_pct=csvrow['RepVotesTotalPercent'], dem_pct=csvrow['DemVotesTotalPercent'],
+                                           year=int(selected_year)+i)
         process_count += 1
         if not (process_count % 100):
             sys.stdout.write('.')
